@@ -1,0 +1,240 @@
+﻿<Window x:Class="AssemblyBrowser.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:controls="clr-namespace:WPFExtensions.Controls;assembly=WPFExtensions"
+        xmlns:wpf="clr-namespace:Graphviz4Net.WPF;assembly=Graphviz4Net.WPF"
+        xmlns:wpfApplication="clr-namespace:AssemblyBrowser"
+        mc:Ignorable="d"
+        Title="MainWindow"
+        MinHeight="480"
+        MinWidth="640">
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type wpfApplication:TypeInfo}">
+            <Border BorderBrush="{Binding Foreground}" BorderThickness="3" CornerRadius="5"
+                    Background="{Binding Backgroud}">
+                <StackPanel>
+                    <TextBlock Text="{Binding Name}" Margin="2" MouseDown="CopyNameOrGoToTypes"
+                               Foreground="{Binding Foreground}" />
+                    <Separator />
+                    <TextBlock Text="{Binding Assembly}" Margin="2" Foreground="{Binding Foreground}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="{x:Type wpfApplication:Arrow}">
+            <Canvas Width="6" Height="11">
+                <Polygon Points="3,0 6,5 3,10 0,5" Stroke="Black" StrokeThickness="1" Fill="Black" />
+            </Canvas>
+        </DataTemplate>
+
+        <DrawingImage x:Key="Back">
+            <DrawingImage.Drawing>
+                <DrawingGroup ClipGeometry="M0,0 V20 H20 V0 H0 Z">
+                    <DrawingGroup>
+                        <GeometryDrawing Brush="#FF1A1A1A" Geometry="F1 M20,20z M0,0z M1.731867,9.9956035C1.731887,10.75164 1.831527,11.479846 2.030769,12.18022 2.230056,12.880577 2.508444,13.538452 2.865934,14.153847 3.223462,14.769219 3.652765,15.328926 4.153846,15.832967 4.654962,16.336984 5.211737,16.769218 5.824176,17.12967 6.436645,17.490096 7.09452,17.769949 7.797803,17.969231 8.501112,18.168484 9.230781,18.268117 9.986813,18.268132 10.742868,18.268117 11.471072,18.168482 12.171429,17.969231 12.871804,17.769949 13.526748,17.490096 14.136263,17.12967 14.745794,16.769218 15.304036,16.336984 15.810989,15.832967 16.317954,15.328926 16.751653,14.769219 17.112088,14.153847 17.472532,13.538452 17.75385,12.880577 17.956044,12.18022 18.158245,11.479846 18.259344,10.75164 18.25934,9.9956035 18.259344,9.2395545 18.15971,8.5113495 17.960439,7.8109885 17.761176,7.1106185 17.481323,6.4542095 17.120879,5.8417575 16.760444,5.2293035 16.32821,4.6725265 15.824175,4.1714275 15.320153,3.6703295 14.760446,3.2395605 14.145055,2.8791205 13.529678,2.5186815 12.871804,2.2388285 12.171429,2.0395595 11.471072,1.8402955 10.742868,1.7406605 9.986813,1.7406595 9.230781,1.7406605 8.501112,1.8402995 7.797803,2.0395595 7.09452,2.2388285 6.436645,2.5172175 5.824176,2.8747245 5.211737,3.2322355 4.654962,3.6615385 4.153846,4.1626365 3.652765,4.6637355 3.223462,5.2219765 2.865934,5.8373625 2.508444,6.4527445 2.230056,7.1106185 2.030769,7.8109885 1.831522,8.5113495 1.731887,9.2395545 1.731867,9.9956035z M4.501098,10.0307755L4.501098,9.9956035 8.527472,5.7846155 11.446154,5.7846155 8.378022,8.9230775 15.050549,8.9230775 15.050549,11.103297 8.378022,11.103297 11.446154,14.241758 8.527472,14.241758z M0,9.9868115C2.0999981E-05,9.0783815 0.120171,8.2021925 0.360439,7.3582395 0.600754,6.5142815 0.940679,5.7216075 1.380219,4.9802185 1.819799,4.2388255 2.344342,3.5633675 2.953846,2.9538435 3.563387,2.3443225 4.238845,1.8197795 4.980218,1.3802185 5.721627,0.94065953 6.515765,0.60073453 7.362637,0.36043753 8.209538,0.12014953 9.087192,2.5255985E-06 9.995604,-4.7440151E-07 10.90404,2.5255985E-06 11.781694,0.12015453 12.628571,0.36043853 13.475466,0.60073553 14.269604,0.93773053 15.010989,1.3714285 15.752387,1.8051295 16.429309,2.3267405 17.041758,2.9362635 17.654216,3.5457875 18.180223,4.2212455 18.61978,4.9626375 19.059343,5.7040275 19.39927,6.4981655 19.63956,7.3450535 19.879855,8.1919365 20.000002,9.0725215 20,9.9868125 20.000002,10.89523 19.879855,11.772886 19.63956,12.61978 19.39927,13.466657 19.059343,14.260795 18.61978,15.002197 18.180223,15.743577 17.654216,16.4205 17.041758,17.032967 16.429309,17.645407 15.752387,18.171414 15.010989,18.610989 14.269604,19.050534 13.475466,19.391926 12.628571,19.635165 11.781694,19.878372 10.90404,19.999984 9.995604,20 9.087192,19.999984 8.209538,19.879837 7.362637,19.63956 6.515765,19.399252 5.721627,19.06079 4.980218,18.624176 4.238845,18.187531 3.563387,17.66299 2.953846,17.050549 2.344342,16.438082 1.819799,15.761159 1.380219,15.019779 0.940679,14.278377 0.600754,13.482774 0.360439,12.632967 0.120168,11.783143 2.0999981E-05,10.901091 0,9.9868125z" />
+                    </DrawingGroup>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+
+        <DrawingImage x:Key="Refresh">
+            <DrawingImage.Drawing>
+                <DrawingGroup ClipGeometry="M0,0 V512 H512 V0 H0 Z">
+                    <DrawingGroup>
+                        <GeometryDrawing Brush="#FF000000" Geometry="F1 M512,512z M0,0z M479.971,32.18C458.251,53.391 437.081,75.18 415.451,96.481 414.401,97.711 413.191,96.321 412.361,95.631 387.85,71.651 357.781,53.35 325.14,42.791 287.54,30.631 246.691,28.721 208.111,37.201 139.441,51.871 79.3,101.26 51.671,165.81 51.702,165.824 51.733,165.835 51.7640000000001,165.849 49.4640000000001,170.386 48.1590000000001,175.515 48.1590000000001,180.949 48.1590000000001,199.424 63.1360000000001,214.4 81.6100000000001,214.4 97.4410000000001,214.4 110.694,203.398 114.165,188.627 133.922,146.648 172.997,114.182 218.132,103.1 270.332,89.93 329.502,104.43 367.532,143.141 345.502,164.971 323.141,186.481 301.202,208.401 360.722,208.081 420.262,208.26 479.792,208.311 480.291,149.611 479.931,90.891 479.971,32.18z" />
+                        <GeometryDrawing Brush="#FF000000" Geometry="F1 M512,512z M0,0z M431.609,297.5C416.989,297.5 404.568,306.883 400.018,319.953 400.009,319.949 399.999,319.945 399.991,319.941 380.881,362.531 342.421,396.16 297.151,408.121 244.352,422.432 183.701,408.42 144.972,369.07 166.892,347.31 189.341,326.06 211.161,304.201 151.461,304.25 91.7509999999999,304.23 32.0509999999999,304.211 31.9109999999999,362.811 31.8919999999999,421.4 32.0619999999999,480 53.9819999999999,458.09 75.8119999999999,436.09 97.8519999999999,414.301 111.961,428.09 127.612,440.371 144.772,450.17 199.511,482.141 268.171,488.772 328.071,468.061 385.548,448.764 434.144,404.883 459.283,349.743 462.928,344.386 465.059,337.919 465.059,330.95 465.06,312.477 450.083,297.5 431.609,297.5z" />
+                    </DrawingGroup>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
+    </Window.Resources>
+    <Grid Name="MainGrid">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Border Grid.ZIndex="15" 
+                Background="#33808080" 
+                VerticalAlignment="Stretch" 
+                HorizontalAlignment="Stretch" 
+                Visibility="Collapsed" 
+                Grid.Row="0" 
+                Grid.RowSpan="2" 
+                Grid.ColumnSpan="3" 
+                Grid.Column="0" 
+                Name="Loading">
+            <TextBlock Text="Loading..." 
+                       Foreground="Black" 
+                       Background="Transparent" 
+                       VerticalAlignment="Center" 
+                       FontSize="30" 
+                       TextAlignment="Center"/>
+        </Border>
+        <DockPanel Grid.Column="0" 
+                   Grid.Row="0" 
+                   Grid.RowSpan="2">
+            <StackPanel Orientation="Vertical" 
+                        VerticalAlignment="Center" 
+                        DockPanel.Dock="Top">
+                <DockPanel>
+                    <Label Content="Select assembly:" 
+                           Margin="5,0,5,0" 
+                           VerticalContentAlignment="Center" 
+                           DockPanel.Dock="Left"/>
+                    <Button Width="20" 
+                            Height="20" 
+                            Click="RefreshAssemblies" 
+                            Background="Transparent" 
+                            BorderBrush="Transparent" 
+                            VerticalContentAlignment="Center" 
+                            VerticalAlignment="Center" 
+                            HorizontalAlignment="Right" 
+                            Margin="5,0,5,0" 
+                            DockPanel.Dock="Right">
+                        <Button.Content>
+                            <Image Source="{StaticResource Refresh}"/>
+                        </Button.Content>
+                    </Button>
+                </DockPanel>
+                <ComboBox Name="Assemblies"
+                          IsEnabled="False"
+                          Margin="5,0,5,0"
+                          ItemsSource="{Binding AllAssemblies, UpdateSourceTrigger=PropertyChanged}"
+                          VerticalAlignment="Center"
+                          VerticalContentAlignment="Center"
+                          SelectionChanged="AssemblySelected"
+                          TextBoxBase.TextChanged="OnAssembliesFilter"
+                          IsEditable="True"
+                          DropDownClosed="AssemblySelected" />
+            </StackPanel>
+            <StackPanel Orientation="Vertical" 
+                        VerticalAlignment="Center" 
+                        DockPanel.Dock="Top">
+                <Label Content="Select type:" 
+                       Margin="5,0,5,0" 
+                       VerticalContentAlignment="Center" />
+                <ComboBox Name="Types"
+                          IsEnabled="False"
+                          Margin="5,0,5,0"
+                          ItemsSource="{Binding AllTypes, UpdateSourceTrigger=PropertyChanged}"
+                          VerticalAlignment="Center"
+                          VerticalContentAlignment="Center"
+                          SelectionChanged="TypeSelected"
+                          DropDownClosed="TypeSelected"
+                          TextBoxBase.TextChanged="OnTypesFilter"
+                          IsEditable="True">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+            <DockPanel>
+                <DockPanel DockPanel.Dock="Top">
+                    <Button Width="20" 
+                            Height="20" 
+                            Click="GoBack" 
+                            Background="Transparent" 
+                            BorderBrush="Transparent" 
+                            VerticalContentAlignment="Center" 
+                            VerticalAlignment="Center" 
+                            DockPanel.Dock="Left" 
+                            Margin="5,0,5,0">
+                        <Button.Content>
+                            <Image Source="{StaticResource Back}"/>
+                        </Button.Content>
+                    </Button>
+                    <Label Content="Referenced assemblies:" 
+                           Margin="0,0,5,0" 
+                           VerticalContentAlignment="Center" 
+                           VerticalAlignment="Center" 
+                           DockPanel.Dock="Left"/>
+                    <Button Width="20" 
+                            Height="20" 
+                            Click="SetMainGraph" 
+                            Background="Transparent" 
+                            BorderBrush="Transparent" 
+                            VerticalContentAlignment="Center" 
+                            VerticalAlignment="Center" 
+                            HorizontalAlignment="Right" 
+                            Margin="5,0,5,0" 
+                            DockPanel.Dock="Right">
+                        <Button.Content>
+                            <Image Source="{StaticResource Refresh}"/>
+                        </Button.Content>
+                    </Button>
+                </DockPanel>
+                <ListView ItemsSource="{Binding ReferencedAssemblies, UpdateSourceTrigger=PropertyChanged}" 
+                          Name="References" 
+                          Margin="5, 0, 5, 5" 
+                          DockPanel.Dock="Top" 
+                          Height="Auto" 
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"  
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" 
+                                        Margin="5,5,5,0">
+                                <Border Height="5" 
+                                        Width="5" 
+                                        BorderThickness="5" 
+                                        BorderBrush="{Binding Color}" 
+                                        Margin="0,0,5,0"/>
+                                <TextBlock Text="{Binding AssemblyName}" 
+                                           MouseLeftButtonDown="CopyNameOrGoToTypes" 
+                                           MouseRightButtonDown="BuildSmallGraph"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+            </DockPanel>
+        </DockPanel>
+        <controls:ZoomControl Name="Zoom" 
+                                  MouseWheel="Scroll" 
+                                  Grid.Column="1" 
+                                  Grid.Row="0" 
+                                  Grid.RowSpan="2" 
+                                  Grid.ColumnSpan="2" 
+                                  Visibility="Collapsed" 
+                                  Grid.ZIndex="5">
+            <wpf:GraphLayout Graph="{Binding GraphItem, UpdateSourceTrigger=PropertyChanged}"
+                             Name="GraphLayout" />
+        </controls:ZoomControl>
+        <ListView ItemsSource="{Binding Legend}" 
+                  Grid.Row="0" 
+                  Grid.Column="2" 
+                  Margin="5" 
+                  Height="Auto" 
+                  ScrollViewer.VerticalScrollBarVisibility="Auto" 
+                  Grid.ZIndex="10" 
+                  Background="Transparent" 
+                  BorderBrush="Transparent">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="Focusable" Value="false"/>
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Width="15" 
+                                Height="4" 
+                                BorderBrush="{Binding Color}" 
+                                BorderThickness="2"
+                                VerticalAlignment="Center" />
+                        <Label Content="{Binding AssemblyName}" 
+                               VerticalContentAlignment="Center" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+    </Grid>
+</Window>
