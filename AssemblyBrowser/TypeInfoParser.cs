@@ -11,7 +11,8 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.Serialization;
 using System.Windows.Media;
-using Graphviz4Net.Graphs;
+using GraphLayout;
+using QuickGraph;
 
 namespace AssemblyBrowser
 {
@@ -30,15 +31,21 @@ namespace AssemblyBrowser
 
         private readonly Dictionary<string, Brush>  _assemblyColors = new Dictionary<string, Brush>();
 
-        public Graph<TypeInfo> GetTypeInfoGraph(Type type, List<LegendItem> legend,  bool makeFullDump = false)
+        public DependencyGraph GetTypeInfoGraph(Type type, List<LegendItem> legend,  bool makeFullDump = false)
         {
-            var graph = new Graph<TypeInfo>();
+            var graph = new DependencyGraph();
+            graph.EdgeCapacity = 0;
             FillTypeInfoGraph(type, graph);
             legend.AddRange(_assemblyColors.Select(x => new LegendItem {Color = x.Value, AssemblyName = x.Key}));
+            if (!graph.Edges.Any())
+            {
+                graph.AddEdge(new Edge<TypeInfo>(graph.Vertices.First(), graph.Vertices.First()));
+            }
+
             return graph;
         }
 
-        private void FillTypeInfoGraph(Type type, Graph<TypeInfo> rootTypeInfo, TypeInfo parent = null)
+        private void FillTypeInfoGraph(Type type, DependencyGraph rootTypeInfo, TypeInfo parent = null)
         {
             var enumerableEntryType = IsTypeOfEnumerableKind(type) ? GetEnumerableEntryType(type) : null;
             if (!ShouldProcessType(type, enumerableEntryType))
@@ -51,10 +58,10 @@ namespace AssemblyBrowser
             if (rootTypeInfo.Vertices.Any(x => x.Equals(typeInfo)) && parent != null)
             {
                 var vert = rootTypeInfo.Vertices.First(x => x.Equals(typeInfo));
-                var matchingEdge = rootTypeInfo.Edges.FirstOrDefault(x => x.Source.Equals(parent) && x.Destination.Equals(vert));
+                var matchingEdge = rootTypeInfo.Edges.FirstOrDefault(x => x.Source.Equals(parent) && x.Target.Equals(vert));
                 if (matchingEdge == null && !parent.Equals(vert))
                 {
-                    rootTypeInfo.AddEdge(new Edge<TypeInfo>(parent, vert, new Arrow()));
+                    rootTypeInfo.AddEdge(new Edge<TypeInfo>(parent, vert));
                 }
             }
             else
@@ -62,10 +69,10 @@ namespace AssemblyBrowser
                 rootTypeInfo.AddVertex(typeInfo);
                 if (parent != null)
                 {
-                    var matchingEdge = rootTypeInfo.Edges.FirstOrDefault(x => x.Source.Equals(parent) && x.Destination.Equals(typeInfo));
+                    var matchingEdge = rootTypeInfo.Edges.FirstOrDefault(x => x.Source.Equals(parent) && x.Target.Equals(typeInfo));
                     if (matchingEdge == null)
                     {
-                        rootTypeInfo.AddEdge(new Edge<TypeInfo>(parent, typeInfo, new Arrow()));
+                        rootTypeInfo.AddEdge(new Edge<TypeInfo>(parent, typeInfo));
                     }
                 }
 
@@ -99,7 +106,7 @@ namespace AssemblyBrowser
             }
         }
 
-        private void ProcessProperties(Type type, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessProperties(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             var properties = type.GetProperties();
             foreach (var property in properties)
@@ -108,7 +115,7 @@ namespace AssemblyBrowser
             }
         }
 
-        private void ProcessNetstedTypes(Type type, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessNetstedTypes(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             var nestedTypes = type.GetNestedTypes();
             foreach (var nestedType in nestedTypes)
@@ -117,7 +124,7 @@ namespace AssemblyBrowser
             }
         }
 
-        private void ProcessGenericArguments(Type type, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessGenericArguments(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             var genericArguments = type.GetGenericArguments();
             foreach (var argument in genericArguments)
@@ -126,7 +133,7 @@ namespace AssemblyBrowser
             }
         }
 
-        private void ProcessEvents(Type type, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessEvents(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             var events = type.GetEvents();
             foreach (var eventInfo in events)
@@ -135,7 +142,7 @@ namespace AssemblyBrowser
             }
         }
 
-        private void ProcessMethods(Type type, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessMethods(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             var methods = type.GetMethods();
             foreach (var method in methods)
@@ -160,7 +167,7 @@ namespace AssemblyBrowser
             }
         }
 
-        private void ProcessFields(Type type, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessFields(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             var fields = type.GetFields();
             foreach (var field in fields)
@@ -169,15 +176,15 @@ namespace AssemblyBrowser
             }
         }
 
-        private void ProcessBaseTypes(Type type, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessBaseTypes(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
-            if (type.BaseType?.Namespace != null && !type.BaseType.Namespace.StartsWith("System."))
+            if (type.BaseType?.Namespace != null && !type.BaseType.Namespace.StartsWith("System"))
             {
                 FillTypeInfoGraph(type.BaseType, rootTypeInfo, typeInfo);
             }
         }
 
-        private void ProcessConstructors(Type type, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessConstructors(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             var constructors = type.GetConstructors();
             foreach (var parameter in constructors.Select(constructor => constructor.GetParameters()).SelectMany(parameters => parameters))
@@ -186,7 +193,7 @@ namespace AssemblyBrowser
             }
         }
 
-        private void ProcessCustomAttributes(MemberInfo type, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessCustomAttributes(MemberInfo type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             foreach (var attribute in type.GetCustomAttributes<KnownTypeAttribute>().ToArray().Where(attribute => attribute.Type != null))
             {
@@ -194,7 +201,7 @@ namespace AssemblyBrowser
             }
         }
 
-        private void ProcessMembersAttributes(IEnumerable<MemberInfo> members, Graph<TypeInfo> rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessMembersAttributes(IEnumerable<MemberInfo> members, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             foreach (var member in members)
             {

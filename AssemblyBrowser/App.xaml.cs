@@ -11,7 +11,7 @@ namespace AssemblyBrowser
     /// </summary>
     public partial class App : Application
     {
-        public static string AssembliesPath => Path.GetFullPath(Directory.Exists("Assemblies") ? "Assemblies" : @"..\..\..\..\Assemblies");
+        public static string AssembliesPath => Path.GetFullPath(Directory.Exists("Assemblies") ? "Assemblies" : @"..\..\..\..\..\Assemblies");
 
         protected override void OnStartup(StartupEventArgs e)
         {
