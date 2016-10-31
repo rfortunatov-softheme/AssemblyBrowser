@@ -42,6 +42,8 @@ namespace AssemblyBrowser
 
         public ObservableCollection<LegendItem> ReferencedAssemblies { get; set; }
 
+        public ObservableCollection<LegendItem> AssemblyTypesSource { get; set; } 
+
         public ObservableCollection<string> AllAssemblies => new ObservableCollection<string>(_assemblies.Keys);
 
         public ObservableCollection<ComboBoxItem> AllTypes => new ObservableCollection<ComboBoxItem>(string.IsNullOrEmpty(_selectedAssembly) ? Enumerable.Empty<ComboBoxItem>() : _types[_selectedAssembly]);
@@ -49,6 +51,8 @@ namespace AssemblyBrowser
         public ObservableCollection<LegendItem> Legend => new ObservableCollection<LegendItem>(_legend); 
 
         public event PropertyChangedEventHandler PropertyChanged;
+
+        public string TotalVertices => GraphItem?.Vertices.Count().ToString() ?? "None";
 
         public ObservableCollection<string> LayoutTypes => new ObservableCollection<string>(new []
         {
@@ -71,6 +75,7 @@ namespace AssemblyBrowser
                 _layoutType = value;
                 OnPropertyChanged(nameof(LayoutType));
                 OnPropertyChanged(nameof(GraphItem));
+                OnPropertyChanged(nameof(TotalVertices));
             }
         }
 
@@ -84,29 +89,24 @@ namespace AssemblyBrowser
         {
             if (e.Delta > 0)
             {
-                Zoom.Zoom += 0.1;
+                Zoom.Zoom += 0.01;
             }
             else
             {
-                Zoom.Zoom -= 0.1;
+                Zoom.Zoom -= 0.01;
             }
         }
 
-        private void CopyNameOrGoToTypes(object sender, MouseButtonEventArgs e)
+        private void ShowTypes(object sender, MouseButtonEventArgs e)
         {
             var textBlock = sender as TextBlock;
-            if (textBlock != null)
-            {
-                if (_assemblies.ContainsKey(textBlock.Text))
-                {
-                    ReferencedAssemblies = new ObservableCollection<LegendItem>(_referencedAssemblies.First(x => string.Equals(x.Key.AssemblyName, textBlock.Text)).Value);
-                    OnPropertyChanged(nameof(ReferencedAssemblies));
-                }
-                else
-                {
-                    Clipboard.SetText(textBlock.Text);
-                }
-            }
+            if (textBlock == null) return;
+            if (!_assemblies.ContainsKey(textBlock.Text)) return;
+
+            AssemblyTypesSource = new ObservableCollection<LegendItem>(_referencedAssemblies.First(x => string.Equals(x.Key.AssemblyName, textBlock.Text)).Value);
+            References.Visibility = Visibility.Collapsed;
+            AssemblyTypes.Visibility = Visibility.Visible;
+            OnPropertyChanged(nameof(AssemblyTypesSource));
         }
 
         private void AssemblySelected(object sender, EventArgs e)
@@ -191,6 +191,7 @@ namespace AssemblyBrowser
                         OnPropertyChanged(nameof(GraphItem));
                         OnPropertyChanged(nameof(ReferencedAssemblies));
                         OnPropertyChanged(nameof(Legend));
+                        OnPropertyChanged(nameof(TotalVertices));
                     });
                 }
             });
@@ -257,75 +258,15 @@ namespace AssemblyBrowser
 
         private void GoBack(object sender, RoutedEventArgs e)
         {
-            ReferencedAssemblies = new ObservableCollection<LegendItem>(_referencedAssemblies.Keys);
-            OnPropertyChanged(nameof(ReferencedAssemblies));
+            References.Visibility = Visibility.Visible;
+            AssemblyTypes.Visibility = Visibility.Collapsed;
         }
-
-        private void FilterGraphByType(object sender, RoutedEventArgs routedEventArgs)
-        {
-            var button = sender as MenuItem;
-            if (button == null)
-            {
-                return;
-            }
-
-            var newGraph = new DependencyGraph();
-            if (_assemblies.ContainsKey(button.Tag.ToString()))
-            {
-                var matchingEdges = _currentGraph.Edges.Where(x => x.Source.Assembly == button.Tag.ToString() || x.Target.Assembly == button.Tag.ToString());
-                foreach (var edge in matchingEdges)
-                {
-                    newGraph.AddEdge(edge);
-                    if (!newGraph.Vertices.Contains(edge.Source))
-                    {
-                        newGraph.AddVertex(edge.Source);
-                    }
-
-                    if (!newGraph.Vertices.Contains(edge.Target))
-                    {
-                        newGraph.AddVertex(edge.Target);
-                    }
-                }
-            }
-            else
-            { 
-                TypeInfo previousType = null;
-                var thisType = _currentGraph.Edges.FirstOrDefault(x => string.Equals(x.Source.Name, button.Tag.ToString()))?.Source 
-                               ?? _currentGraph.Edges.FirstOrDefault(x => string.Equals(x.Target.Name, button.Tag.ToString()))?.Target;
-                while (thisType != null && !string.Equals(thisType.Type.FullName, _selectedType.FullName))
-                {
-                    var type = thisType;
-                    var parent = previousType;
-                    var edgesToUse = previousType == null 
-                        ? _currentGraph.Edges.Where(x => string.Equals(x.Source.Name, type.Name))
-                        : _currentGraph.Edges.Where(x => string.Equals(x.Target.Name, parent.Name) && string.Equals(x.Source.Name, type.Name));
-                    foreach (var edge in edgesToUse)
-                    {
-                        newGraph.AddEdge(edge);
-                        if (!newGraph.Vertices.Contains(edge.Source))
-                        {
-                            newGraph.AddVertex(edge.Source);
-                        }
-
-                        if (!newGraph.Vertices.Contains(edge.Target))
-                        {
-                            newGraph.AddVertex(edge.Target);
-                        }
-                    }
-
-                    previousType = thisType;
-                    thisType = thisType.Parent;
-                }
-            }
-
-            GraphItem = newGraph;
-            OnPropertyChanged(nameof(GraphItem));
-        }
-
+        
         private void SetMainGraph(object sender, RoutedEventArgs e)
         {
             GraphItem = _currentGraph;
             OnPropertyChanged(nameof(GraphItem));
+            OnPropertyChanged(nameof(TotalVertices));
         }
 
         private void RefreshAssemblies(object sender, RoutedEventArgs e)
@@ -335,6 +276,16 @@ namespace AssemblyBrowser
 
         private void LoadAssemblies()
         {
+            _assemblies.Clear();
+            _types.Clear();
+            _legend.Clear();
+            _referencedAssemblies.Clear();
+            _currentGraph = null;
+            ReferencedAssemblies?.Clear();
+            AssemblyTypesSource?.Clear();
+            Assemblies.SelectedItem = null;
+            Types.SelectedItem = null;
+            Types.IsEnabled = false;
             Dispatcher.Invoke(() => { Loading.Visibility = Visibility.Visible; MainGrid.IsEnabled = false; });
             var files = Directory.GetFiles(App.AssembliesPath, "*.dll");
             Task.Factory.StartNew(() =>
@@ -343,7 +294,14 @@ namespace AssemblyBrowser
                 {
                     try
                     {
-                        var assembly = Assembly.LoadFrom(file);
+                        Assembly assembly;
+                        using (Stream stream = File.OpenRead(file))
+                        {
+                            byte[] rawAssembly = new byte[stream.Length];
+                            stream.Read(rawAssembly, 0, (int)stream.Length);
+                            assembly = Assembly.Load(rawAssembly);
+                        }
+
                         var types = GetLoadableTypes(assembly).Where(x => !x.Name.StartsWith("<")).OrderBy(x => x.Name).ToList();
                         _assemblies.Add(assembly.GetName().Name, assembly);
                         _types.Add(assembly.GetName().Name, types.OrderBy(x => x.Name).Select(x => new ComboBoxItem { Content = x.Name, Tag = x }));
@@ -360,6 +318,8 @@ namespace AssemblyBrowser
                     Zoom.Visibility = Visibility.Visible;
                     OnPropertyChanged(nameof(AllAssemblies));
                     OnPropertyChanged(nameof(AllTypes));
+                    OnPropertyChanged(nameof(GraphItem));
+                    OnPropertyChanged(nameof(TotalVertices));
                 });
                 Dispatcher.Invoke(() => { Loading.Visibility = Visibility.Collapsed; MainGrid.IsEnabled = true; });
             });
@@ -374,6 +334,79 @@ namespace AssemblyBrowser
             }
 
             button.ContextMenu.IsOpen = !button.ContextMenu.IsOpen;
+        }
+
+        private void UpdateGraph(object sender, RoutedEventArgs e)
+        {
+            var newGraph = new DependencyGraph();
+            var button = sender as Button;
+            if (button != null)
+            {
+                FilterByType(button.Tag.ToString(), newGraph);
+            }
+            else if (sender is CheckBox)
+            {
+                FilterByAssemblies(newGraph);
+            }
+            else
+            {
+                return;
+            }
+            
+            GraphItem = newGraph;
+            OnPropertyChanged(nameof(GraphItem));
+            OnPropertyChanged(nameof(TotalVertices));
+        }
+
+        private void FilterByAssemblies(DependencyGraph newGraph)
+        {
+            var matchingEdges = _currentGraph.Edges.Where(x => ReferencedAssemblies.Any(y => y.ShouldShow && x.Source.Assembly == y.AssemblyName) && ReferencedAssemblies.Any(y => y.ShouldShow && x.Target.Assembly == y.AssemblyName));
+            foreach (var edge in matchingEdges)
+            {
+                if (!newGraph.Vertices.Contains(edge.Source))
+                {
+                    newGraph.AddVertex(edge.Source);
+                }
+
+                if (!newGraph.Vertices.Contains(edge.Target))
+                {
+                    newGraph.AddVertex(edge.Target);
+                }
+
+                newGraph.AddEdge(edge);
+            }
+        }
+
+        private void FilterByType(string typeName, DependencyGraph newGraph)
+        {
+            TypeInfo previousType = null;
+            var thisType = _currentGraph.Edges.FirstOrDefault(x => string.Equals(x.Source.Name, typeName))?.Source
+                           ?? _currentGraph.Edges.FirstOrDefault(x => string.Equals(x.Target.Name, typeName))?.Target;
+            while (thisType != null && !string.Equals(thisType.Type.FullName, _selectedType.FullName))
+            {
+                var type = thisType;
+                var parent = previousType;
+                var edgesToUse = previousType == null
+                    ? _currentGraph.Edges.Where(x => string.Equals(x.Source.Name, type.Name))
+                    : _currentGraph.Edges.Where(x => string.Equals(x.Target.Name, parent.Name) && string.Equals(x.Source.Name, type.Name));
+                foreach (var edge in edgesToUse)
+                {
+                    if (!newGraph.Vertices.Contains(edge.Source))
+                    {
+                        newGraph.AddVertex(edge.Source);
+                    }
+
+                    if (!newGraph.Vertices.Contains(edge.Target))
+                    {
+                        newGraph.AddVertex(edge.Target);
+                    }
+
+                    newGraph.AddEdge(edge);
+                }
+
+                previousType = thisType;
+                thisType = thisType.Parent;
+            }
         }
     }
 }

@@ -16,7 +16,7 @@
             <Border BorderBrush="{Binding Foreground}" BorderThickness="3" CornerRadius="5"
                     Background="{Binding Backgroud}">
                 <StackPanel>
-                    <TextBlock Text="{Binding Name}" Margin="2" MouseDown="CopyNameOrGoToTypes"
+                    <TextBlock Text="{Binding Name}" Margin="2" MouseDown="ShowTypes"
                                Foreground="{Binding Foreground}" />
                     <Separator />
                     <TextBlock Text="{Binding Assembly}" Margin="2" Foreground="{Binding Foreground}" />
@@ -195,35 +195,70 @@
                         </Button.Content>
                     </Button>
                 </DockPanel>
-                <ListView ItemsSource="{Binding ReferencedAssemblies, UpdateSourceTrigger=PropertyChanged}" 
-                          Name="References" 
-                          Margin="5, 0, 5, 5" 
-                          DockPanel.Dock="Top" 
-                          Height="Auto" 
-                          ScrollViewer.VerticalScrollBarVisibility="Auto"  
-                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
-                    <ListView.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal" 
-                                        Margin="5,5,5,0">
-                                <Border Height="5" 
-                                        Width="5" 
-                                        BorderThickness="5" 
-                                        BorderBrush="{Binding Color}" 
-                                        Margin="0,0,5,0"/>
-                                <TextBlock Text="{Binding AssemblyName}" 
-                                           MouseLeftButtonDown="CopyNameOrGoToTypes"/>
-                                <StackPanel.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Click="FilterGraphByType"
-                                                  Header="Filter graph by this"
-                                                  Tag="{Binding AssemblyName}"/>
-                                    </ContextMenu>
-                                </StackPanel.ContextMenu>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
+                <Grid DockPanel.Dock="Top" 
+                      Height="Auto">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ListView ItemsSource="{Binding ReferencedAssemblies, UpdateSourceTrigger=PropertyChanged}" 
+                              Name="References" 
+                              Margin="5, 0, 5, 5" 
+                              Height="Auto"
+                              Grid.Row="0"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"  
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" 
+                                            Margin="5,5,5,0">
+                                    <CheckBox IsChecked="{Binding ShouldShow}" 
+                                              Margin="0,0,5,0" 
+                                              Checked="UpdateGraph"
+                                              Unchecked="UpdateGraph"/>
+                                    <TextBlock Text="{Binding AssemblyName}" 
+                                               MouseLeftButtonDown="ShowTypes"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <ListView ItemsSource="{Binding AssemblyTypesSource, UpdateSourceTrigger=PropertyChanged}" 
+                              Name="AssemblyTypes"
+                              Visibility="Collapsed"
+                              Margin="5, 0, 5, 5" 
+                              Height="Auto" 
+                              Grid.Row="0"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"  
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" 
+                                            Margin="5,5,5,0">
+                                    <TextBlock Text="{Binding AssemblyName}" />
+                                    <StackPanel.ContextMenu>
+                                        <ContextMenu>
+                                            <ContextMenu.Template>
+                                                <ControlTemplate>
+                                                    <Button Background="Transparent"
+                                                            BorderBrush="Transparent"
+                                                            Click="UpdateGraph"
+                                                            Content="Build chain for type"
+                                                            Tag="{Binding AssemblyName}"/>
+                                                </ControlTemplate>
+                                            </ContextMenu.Template>
+                                        </ContextMenu>
+                                    </StackPanel.ContextMenu>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                    <DockPanel Grid.Row="1">
+                        <Label Content="Total number of references:"
+                               DockPanel.Dock="Left"/>
+                        <Label Content="{Binding TotalVertices, UpdateSourceTrigger=PropertyChanged}"
+                               DockPanel.Dock="Left"/>
+                    </DockPanel>
+                </Grid>
             </DockPanel>
         </DockPanel>
         <Button Width="20" 
@@ -234,7 +269,7 @@
                 Background="Transparent" 
                 BorderBrush="Transparent" 
                 VerticalContentAlignment="Center" 
-                VerticalAlignment="Bottom" 
+                VerticalAlignment="Top" 
                 HorizontalAlignment="Right" 
                 Margin="5" 
                 Name="Gear"
@@ -285,35 +320,38 @@
                                                x:Name="GraphLayout" 
                                                HighlightAlgorithmType="Simple" />
         </controls:ZoomControl>
-        <ListView ItemsSource="{Binding Legend}" 
-                  Grid.Row="0" 
-                  Grid.Column="1" 
-                  Margin="5" 
-                  Height="Auto" 
-                  ScrollViewer.VerticalScrollBarVisibility="Auto" 
-                  Grid.ZIndex="10"
-                  HorizontalAlignment="Right"
-                  VerticalAlignment="Top"
-                  Background="Transparent" 
-                  BorderBrush="Transparent">
-            <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
-                    <Setter Property="Focusable" Value="false"/>
-                </Style>
-            </ListView.ItemContainerStyle>
-            <ListView.ItemTemplate>
+        <ItemsControl ItemsSource="{Binding Legend}" 
+                      Grid.Row="1" 
+                      Grid.Column="1" 
+                      Margin="5" 
+                      Height="Auto" 
+                      ScrollViewer.VerticalScrollBarVisibility="Auto" 
+                      Grid.ZIndex="10"
+                      HorizontalAlignment="Left"
+                      VerticalAlignment="Bottom"
+                      Background="Transparent" 
+                      BorderBrush="Transparent">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <WrapPanel Orientation="Horizontal"/>
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <StackPanel Orientation="Horizontal">
-                        <Border Width="15" 
+                    <StackPanel Orientation="Horizontal" Width="180"
+                                HorizontalAlignment="Left">
+                        <Border Width="10" 
                                 Height="4" 
                                 BorderBrush="{Binding Color}" 
                                 BorderThickness="2"
-                                VerticalAlignment="Center" />
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Left"/>
                         <Label Content="{Binding AssemblyName}" 
-                               VerticalContentAlignment="Center" />
+                               VerticalContentAlignment="Center" 
+                               HorizontalAlignment="Left"/>
                     </StackPanel>
                 </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
     </Grid>
 </Window>

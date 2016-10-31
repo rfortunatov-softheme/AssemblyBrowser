@@ -11,7 +11,7 @@ namespace AssemblyBrowser
     /// </summary>
     public partial class App : Application
     {
-        public static string AssembliesPath => Path.GetFullPath(Directory.Exists("Assemblies") ? "Assemblies" : @"..\..\..\..\..\Assemblies");
+        public static string AssembliesPath => Path.GetFullPath(Directory.Exists("Assemblies") ? "Assemblies" : @"..\..\..\..\..\..\appassure\bin\Debug");
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -40,8 +40,12 @@ namespace AssemblyBrowser
                 return null;
             }
 
-            var assembly = Assembly.LoadFrom(assemblyPath);
-            return assembly;
+            using (Stream stream = File.OpenRead(assemblyPath))
+            {
+                byte[] rawAssembly = new byte[stream.Length];
+                stream.Read(rawAssembly, 0, (int)stream.Length);
+                return Assembly.Load(rawAssembly);
+            }
         }
     }
 }

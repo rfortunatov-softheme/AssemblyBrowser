@@ -18,6 +18,8 @@ namespace AssemblyBrowser
 {
     public class TypeInfoParser
     {
+        private const BindingFlags PrivateAndPublic = BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Instance;
+
         private static readonly Brush[] _brushesToUse = {
             Brushes.DarkCyan,
             Brushes.MediumVioletRed,
@@ -34,14 +36,8 @@ namespace AssemblyBrowser
         public DependencyGraph GetTypeInfoGraph(Type type, List<LegendItem> legend,  bool makeFullDump = false)
         {
             var graph = new DependencyGraph();
-            graph.EdgeCapacity = 0;
             FillTypeInfoGraph(type, graph);
             legend.AddRange(_assemblyColors.Select(x => new LegendItem {Color = x.Value, AssemblyName = x.Key}));
-            if (!graph.Edges.Any())
-            {
-                graph.AddEdge(new Edge<TypeInfo>(graph.Vertices.First(), graph.Vertices.First()));
-            }
-
             return graph;
         }
 
@@ -80,6 +76,10 @@ namespace AssemblyBrowser
                 {
                     ProcessBaseTypes(type, rootTypeInfo, typeInfo);
 
+                    ProcessInterfaces(type, rootTypeInfo, typeInfo);
+
+                    ProcessKnownTypeAttributes(type, rootTypeInfo, typeInfo);
+
                     ProcessCustomAttributes(type, rootTypeInfo, typeInfo);
 
                     ProcessConstructors(type, rootTypeInfo, typeInfo);
@@ -97,6 +97,8 @@ namespace AssemblyBrowser
                     ProcessProperties(type, rootTypeInfo, typeInfo);
 
                     ProcessMembersAttributes(type.GetMembers(), rootTypeInfo, typeInfo);
+
+                    
                 }
 
                 if (enumerableEntryType != null)
@@ -108,7 +110,7 @@ namespace AssemblyBrowser
 
         private void ProcessProperties(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
-            var properties = type.GetProperties();
+            var properties = type.GetProperties(PrivateAndPublic);
             foreach (var property in properties)
             {
                 FillTypeInfoGraph(property.PropertyType, rootTypeInfo, typeInfo);
@@ -117,7 +119,7 @@ namespace AssemblyBrowser
 
         private void ProcessNetstedTypes(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
-            var nestedTypes = type.GetNestedTypes();
+            var nestedTypes = type.GetNestedTypes(PrivateAndPublic);
             foreach (var nestedType in nestedTypes)
             {
                 FillTypeInfoGraph(nestedType, rootTypeInfo, typeInfo);
@@ -135,7 +137,7 @@ namespace AssemblyBrowser
 
         private void ProcessEvents(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
-            var events = type.GetEvents();
+            var events = type.GetEvents(PrivateAndPublic);
             foreach (var eventInfo in events)
             {
                 FillTypeInfoGraph(eventInfo.EventHandlerType, rootTypeInfo, typeInfo);
@@ -144,7 +146,7 @@ namespace AssemblyBrowser
 
         private void ProcessMethods(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
-            var methods = type.GetMethods();
+            var methods = type.GetMethods(PrivateAndPublic);
             foreach (var method in methods)
             {
                 FillTypeInfoGraph(method.ReturnType, rootTypeInfo, typeInfo);
@@ -169,10 +171,18 @@ namespace AssemblyBrowser
 
         private void ProcessFields(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
-            var fields = type.GetFields();
+            var fields = type.GetFields(PrivateAndPublic);
             foreach (var field in fields)
             {
                 FillTypeInfoGraph(field.FieldType, rootTypeInfo, typeInfo);
+            }
+        }
+
+        private void ProcessInterfaces(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
+        {
+            foreach (var inter in type.GetInterfaces())
+            {
+                FillTypeInfoGraph(inter, rootTypeInfo, typeInfo);
             }
         }
 
@@ -186,18 +196,26 @@ namespace AssemblyBrowser
 
         private void ProcessConstructors(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
-            var constructors = type.GetConstructors();
+            var constructors = type.GetConstructors(PrivateAndPublic);
             foreach (var parameter in constructors.Select(constructor => constructor.GetParameters()).SelectMany(parameters => parameters))
             {
                 FillTypeInfoGraph(parameter.ParameterType, rootTypeInfo, typeInfo);
             }
         }
 
-        private void ProcessCustomAttributes(MemberInfo type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
+        private void ProcessKnownTypeAttributes(MemberInfo type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
         {
             foreach (var attribute in type.GetCustomAttributes<KnownTypeAttribute>().ToArray().Where(attribute => attribute.Type != null))
             {
                 FillTypeInfoGraph(attribute.Type, rootTypeInfo, typeInfo);
+            }
+        }
+
+        private void ProcessCustomAttributes(MemberInfo type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
+        {
+            foreach (var attribute in type.GetCustomAttributesData().ToArray())
+            {
+                FillTypeInfoGraph(attribute.AttributeType, rootTypeInfo, typeInfo);
             }
         }
 
