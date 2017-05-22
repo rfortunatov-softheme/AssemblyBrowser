@@ -73,6 +73,17 @@
                 </DrawingGroup>
             </DrawingImage.Drawing>
         </DrawingImage>
+
+        <DrawingImage x:Key="Play">
+            <DrawingImage.Drawing>
+                <DrawingGroup ClipGeometry="M0,0 V512 H512 V0 H0 Z">
+                    <DrawingGroup>
+                        <GeometryDrawing Brush="Black" Geometry="M19.982,14.438L13.742,9.902C13.513,9.736 13.209,9.711 12.958,9.84 12.705,9.968 12.547,10.228 12.547,10.509L12.547,19.578C12.547,19.862 12.705,20.121 12.958,20.249 13.065,20.303 13.182,20.33 13.3,20.33 13.454,20.33 13.61,20.281 13.742,20.184L19.982,15.652C20.179,15.507 20.294,15.283 20.294,15.045 20.295,14.803 20.177,14.58 19.982,14.438z" />
+                        <GeometryDrawing Brush="Black" Geometry="M15.026,0.002C6.726,0.002 0,6.728 0,15.028 0,23.325 6.726,30.049 15.026,30.049 23.324,30.049 30.051,23.324 30.051,15.028 30.052,6.728 23.324,0.002 15.026,0.002z M15.026,27.542C8.114,27.542 2.51,21.941 2.51,15.028 2.51,8.118 8.114,2.51 15.026,2.51 21.937,2.51 27.54,8.117 27.54,15.028 27.541,21.941 21.937,27.542 15.026,27.542z" />
+                    </DrawingGroup>
+                </DrawingGroup>
+            </DrawingImage.Drawing>
+        </DrawingImage>
     </Window.Resources>
     <Grid Name="MainGrid">
         <Grid.ColumnDefinitions>
@@ -132,10 +143,9 @@
                           ItemsSource="{Binding AllAssemblies, UpdateSourceTrigger=PropertyChanged}"
                           VerticalAlignment="Center"
                           VerticalContentAlignment="Center"
-                          SelectionChanged="AssemblySelected"
+                          DropDownClosed="AssemblySelected"
                           TextBoxBase.TextChanged="OnAssembliesFilter"
-                          IsEditable="True"
-                          DropDownClosed="AssemblySelected" />
+                          IsEditable="True" />
             </StackPanel>
             <StackPanel Orientation="Vertical" 
                         VerticalAlignment="Center" 
@@ -149,9 +159,29 @@
                           ItemsSource="{Binding AllTypes, UpdateSourceTrigger=PropertyChanged}"
                           VerticalAlignment="Center"
                           VerticalContentAlignment="Center"
-                          SelectionChanged="TypeSelected"
                           DropDownClosed="TypeSelected"
                           TextBoxBase.TextChanged="OnTypesFilter"
+                          IsEditable="True">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+            <StackPanel Orientation="Vertical" 
+                        VerticalAlignment="Center" 
+                        DockPanel.Dock="Top">
+                <Label Content="Select member:" 
+                       Margin="5,0,5,0" 
+                       VerticalContentAlignment="Center" />
+                <ComboBox Name="Members"
+                          IsEnabled="False"
+                          Margin="5,0,5,0"
+                          ItemsSource="{Binding MemberInfos, UpdateSourceTrigger=PropertyChanged}"
+                          VerticalAlignment="Center"
+                          VerticalContentAlignment="Center"
+                          TextBoxBase.TextChanged="OnMembersFilter"
                           IsEditable="True">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
@@ -261,6 +291,22 @@
                 </Grid>
             </DockPanel>
         </DockPanel>
+        <Button Width="20" 
+                Height="20" 
+                Click="BuildGraph"
+                Grid.Row="1"
+                Grid.Column="1"
+                Background="Transparent" 
+                BorderBrush="Transparent" 
+                VerticalContentAlignment="Center" 
+                VerticalAlignment="Top"
+                HorizontalAlignment="Right"
+                Grid.ZIndex="15" 
+                Margin="5, 25,5,5">
+            <Button.Content>
+                <Image Source="{StaticResource Play}"/>
+            </Button.Content>
+        </Button>
         <Button Width="20" 
                 Height="20" 
                 Grid.Row="1"

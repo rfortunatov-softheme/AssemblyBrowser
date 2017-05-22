@@ -19,7 +19,8 @@ namespace AssemblyBrowser
     public class TypeInfoParser
     {
         private const BindingFlags PrivateAndPublic = BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Instance;
-
+        private readonly Dictionary<string, Brush>  _assemblyColors = new Dictionary<string, Brush>();
+        private List<Type> _allTypes = new List<Type>();
         private static readonly Brush[] _brushesToUse = {
             Brushes.DarkCyan,
             Brushes.MediumVioletRed,
@@ -31,25 +32,28 @@ namespace AssemblyBrowser
             Brushes.Navy
         };
 
-        private readonly Dictionary<string, Brush>  _assemblyColors = new Dictionary<string, Brush>();
 
-        public DependencyGraph GetTypeInfoGraph(Type type, List<LegendItem> legend,  bool makeFullDump = false)
+        public DependencyGraph GetTypeInfoGraph(Type type, List<LegendItem> legend, List<Type> allTypes, bool makeFullDump = false)
         {
             var graph = new DependencyGraph();
+            _allTypes = allTypes;
             FillTypeInfoGraph(type, graph);
             legend.AddRange(_assemblyColors.Select(x => new LegendItem {Color = x.Value, AssemblyName = x.Key}));
             return graph;
         }
 
-        private void FillTypeInfoGraph(Type type, DependencyGraph rootTypeInfo, TypeInfo parent = null)
+        public DependencyGraph GetMemberInfoGraph(MemberInfo type, List<LegendItem> legend, List<Type> allTypes,  bool makeFullDump = false)
         {
-            var enumerableEntryType = IsTypeOfEnumerableKind(type) ? GetEnumerableEntryType(type) : null;
-            if (!ShouldProcessType(type, enumerableEntryType))
-            {
-                return;
-            }
+            var graph = new DependencyGraph();
+            _allTypes = allTypes;
+            FillTypeInfoGraph(type, graph);
+            legend.AddRange(_assemblyColors.Select(x => new LegendItem { Color = x.Value, AssemblyName = x.Key }));
+            return graph;
+        }
 
-            var typeInfo = GenerateTypeInfo(type, parent, enumerableEntryType);
+        private void FillTypeInfoGraph(MemberInfo type, DependencyGraph rootTypeInfo, TypeInfo parent = null)
+        {
+            var typeInfo = GenerateTypeInfo(type, parent);
 
             if (rootTypeInfo.Vertices.Any(x => x.Equals(typeInfo)) && parent != null)
             {
@@ -72,39 +76,144 @@ namespace AssemblyBrowser
                     }
                 }
 
-                if (typeInfo.DeepDigType)
+                switch (type.MemberType)
                 {
-                    ProcessBaseTypes(type, rootTypeInfo, typeInfo);
+                    case MemberTypes.Property:
+                        FillTypeInfoGraph(((PropertyInfo)type).PropertyType, rootTypeInfo, typeInfo);
+                        break;
+                    case MemberTypes.Constructor:
 
-                    ProcessInterfaces(type, rootTypeInfo, typeInfo);
+                        break;
+                    case MemberTypes.Event:
+                        FillTypeInfoGraph(((EventInfo)type).EventHandlerType, rootTypeInfo, typeInfo);
+                        break;
+                    case MemberTypes.Field:
+                        FillTypeInfoGraph(((FieldInfo)type).FieldType, rootTypeInfo, typeInfo);
+                        break;
+                    case MemberTypes.Method:
+                        var methodInfo = type as MethodInfo;
+                        FillTypeInfoGraph(methodInfo.ReturnType, rootTypeInfo, typeInfo);
+                        var methodParameters = methodInfo.GetParameters();
+                        foreach (var parameter in methodParameters)
+                        {
+                            FillTypeInfoGraph(parameter.ParameterType, rootTypeInfo, typeInfo);
+                        }
 
-                    ProcessKnownTypeAttributes(type, rootTypeInfo, typeInfo);
+                        var methodBody = methodInfo.GetMethodBody();
+                        if (methodBody == null)
+                        {
+                            break;
+                        }
 
-                    ProcessCustomAttributes(type, rootTypeInfo, typeInfo);
+                        foreach (var localVariable in methodBody.LocalVariables)
+                        {
+                            FillTypeInfoGraph(localVariable.LocalType, rootTypeInfo, typeInfo);
+                        }
+                        break;
+                    case MemberTypes.TypeInfo:
+                        break;
+                    case MemberTypes.Custom:
+                        break;
+                    case MemberTypes.NestedType:
+                        break;
+                    case MemberTypes.All:
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+            }
+        }
 
-                    ProcessConstructors(type, rootTypeInfo, typeInfo);
-
-                    ProcessFields(type, rootTypeInfo, typeInfo);
-
-                    ProcessMethods(type, rootTypeInfo, typeInfo);
-
-                    ProcessEvents(type, rootTypeInfo, typeInfo);
-
-                    ProcessGenericArguments(type, rootTypeInfo, typeInfo);
-
-                    ProcessNetstedTypes(type, rootTypeInfo, typeInfo);
-
-                    ProcessProperties(type, rootTypeInfo, typeInfo);
-
-                    ProcessMembersAttributes(type.GetMembers(), rootTypeInfo, typeInfo);
-
-                    
+        private void FillTypeInfoGraph(Type type, DependencyGraph rootTypeInfo, TypeInfo parent = null)
+        {
+            try
+            { 
+                var enumerableEntryType = IsTypeOfEnumerableKind(type) ? GetEnumerableEntryType(type) : null;
+                if (!ShouldProcessType(type, enumerableEntryType))
+                {
+                    return;
                 }
 
-                if (enumerableEntryType != null)
+                var typeInfo = GenerateTypeInfo(type, parent, enumerableEntryType);
+
+                if (rootTypeInfo.Vertices.Any(x => x.Equals(typeInfo)) && parent != null)
                 {
-                    FillTypeInfoGraph(enumerableEntryType, rootTypeInfo, typeInfo);
+                    var vert = rootTypeInfo.Vertices.First(x => x.Equals(typeInfo));
+                    var matchingEdge = rootTypeInfo.Edges.FirstOrDefault(x => x.Source.Equals(parent) && x.Target.Equals(vert));
+                    if (matchingEdge == null && !parent.Equals(vert))
+                    {
+                        rootTypeInfo.AddEdge(new Edge<TypeInfo>(parent, vert));
+                    }
                 }
+                else
+                {
+                    rootTypeInfo.AddVertex(typeInfo);
+                    if (parent != null)
+                    {
+                        var matchingEdge = rootTypeInfo.Edges.FirstOrDefault(x => x.Source.Equals(parent) && x.Target.Equals(typeInfo));
+                        if (matchingEdge == null)
+                        {
+                            rootTypeInfo.AddEdge(new Edge<TypeInfo>(parent, typeInfo));
+                        }
+                    }
+
+                    if (typeInfo.DeepDigType)
+                    {
+                        ProcessBaseTypes(type, rootTypeInfo, typeInfo);
+
+                        ProcessInterfaces(type, rootTypeInfo, typeInfo);
+
+                        ProcessKnownTypeAttributes(type, rootTypeInfo, typeInfo);
+
+                        ProcessCustomAttributes(type, rootTypeInfo, typeInfo);
+
+                        ProcessConstructors(type, rootTypeInfo, typeInfo);
+
+                        ProcessFields(type, rootTypeInfo, typeInfo);
+
+                        ProcessMethods(type, rootTypeInfo, typeInfo);
+
+                        ProcessEvents(type, rootTypeInfo, typeInfo);
+
+                        ProcessGenericArguments(type, rootTypeInfo, typeInfo);
+
+                        ProcessNetstedTypes(type, rootTypeInfo, typeInfo);
+
+                        ProcessProperties(type, rootTypeInfo, typeInfo);
+
+                        ProcessMembersAttributes(type.GetMembers(), rootTypeInfo, typeInfo);
+
+                        //ProcessChilds(type, rootTypeInfo, typeInfo);
+                    }
+
+                    if (enumerableEntryType != null)
+                    {
+                        FillTypeInfoGraph(enumerableEntryType, rootTypeInfo, typeInfo);
+                    }
+                }
+            }
+            catch
+            {
+            }
+        }
+
+        private void ProcessChilds(Type type, DependencyGraph rootTypeInfo, TypeInfo typeInfo)
+        {
+            var childTypes = _allTypes.Where(x =>
+            {
+                try
+                {
+                    return x.GetInterfaces().Contains(type);
+                }
+                catch
+                {
+                    return false;
+                }
+            });
+
+            foreach (var childType in childTypes)
+            {
+                FillTypeInfoGraph(childType, rootTypeInfo, typeInfo);
             }
         }
 
@@ -231,6 +340,35 @@ namespace AssemblyBrowser
             }
         }
 
+        private TypeInfo GenerateTypeInfo(MemberInfo type, TypeInfo parent)
+        {
+            var resultType = new TypeInfo
+            {
+                Name = type.Name, Type = type.DeclaringType, ParentType = parent?.Type, Parent = parent, Assembly = type.DeclaringType.Assembly.GetName().Name,
+            };
+
+            if (!_assemblyColors.ContainsKey(resultType.Assembly))
+            {
+                Brush brush = Brushes.Transparent;
+                if (_assemblyColors.Count >= _brushesToUse.Length)
+                {
+                    while (Equals(brush, Brushes.Transparent) || Equals(brush, Brushes.White) || Equals(brush, Brushes.Black) || _assemblyColors.Values.Any(x => Equals(x, brush)))
+                    {
+                        brush = PickBrush();
+                    }
+                }
+                else
+                {
+                    brush = _brushesToUse[_assemblyColors.Count];
+                }
+
+                _assemblyColors.Add(resultType.Assembly, brush);
+            }
+
+            resultType.Backgroud = _assemblyColors[resultType.Assembly];
+            return resultType;
+        }
+
         private TypeInfo GenerateTypeInfo(Type type, TypeInfo parent, Type enumerableEntryType)
         {
             TypeInfo resultType;
@@ -238,23 +376,14 @@ namespace AssemblyBrowser
             {
                 resultType = new TypeInfo
                 {
-                    Name = $"{enumerableEntryType?.Name}-(generated collection)",
-                    Type = typeof (IEnumerable<>).MakeGenericType(enumerableEntryType),
-                    ParentType = parent?.Type,
-                    Parent = parent,
-                    Assembly = enumerableEntryType?.Assembly.GetName().Name,
-                    DeepDigType = false
+                    Name = $"{enumerableEntryType?.Name}-(generated collection)", Type = typeof (IEnumerable<>).MakeGenericType(enumerableEntryType), ParentType = parent?.Type, Parent = parent, Assembly = enumerableEntryType?.Assembly.GetName().Name, DeepDigType = false
                 };
             }
             else
             {
                 resultType = new TypeInfo
                 {
-                    Name = type.Name,
-                    Type = type,
-                    ParentType = parent?.Type,
-                    Parent = parent,
-                    Assembly = type.Assembly.GetName().Name,
+                    Name = type.Name, Type = type, ParentType = parent?.Type, Parent = parent, Assembly = type.Assembly.GetName().Name,
                 };
             }
 
@@ -284,19 +413,19 @@ namespace AssemblyBrowser
         {
             var rnd = new Random();
 
-            var brushesType = typeof(Brushes);
+            var brushesType = typeof (Brushes);
 
             var properties = brushesType.GetProperties();
 
             var random = rnd.Next(properties.Length);
-            var result = (Brush)properties[random].GetValue(null, null);
+            var result = (Brush) properties[random].GetValue(null, null);
 
             return result;
         }
 
         private bool ShouldProcessType(Type type, Type enumerableEntryType)
         {
-            if (type.IsPrimitive || type == typeof(string) || type.Name.Contains("&") || type.Name.Contains("<"))
+            if (type.IsPrimitive || type == typeof (string) || type.Name.Contains("&") || type.Name.Contains("<"))
             {
                 return false;
             }
@@ -311,14 +440,12 @@ namespace AssemblyBrowser
 
         private Type GetEnumerableEntryType(Type enumerable)
         {
-            return enumerable.GetElementType() ?? (enumerable.GetGenericArguments().FirstOrDefault() ?? (enumerable.BaseType == null
-                ? null
-                : (enumerable.BaseType.GetElementType() ?? enumerable.BaseType.GetGenericArguments().FirstOrDefault())));
+            return enumerable.GetElementType() ?? (enumerable.GetGenericArguments().FirstOrDefault() ?? (enumerable.BaseType == null ? null : (enumerable.BaseType.GetElementType() ?? enumerable.BaseType.GetGenericArguments().FirstOrDefault())));
         }
 
         private bool IsTypeOfEnumerableKind(Type type)
         {
-            return typeof(IEnumerable).IsAssignableFrom(type) || typeof(ICollection).IsAssignableFrom(type) && type != typeof(string);
+            return typeof (IEnumerable).IsAssignableFrom(type) || typeof (ICollection).IsAssignableFrom(type) && type != typeof (string);
         }
     }
 }

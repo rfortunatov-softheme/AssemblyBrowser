@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -17,9 +18,12 @@ namespace AssemblyBrowser
 {
     public sealed partial class MainWindow : INotifyPropertyChanged
     {
+        private static readonly Regex _nameCheck = new Regex("^[a-zA-Z].*");
         private readonly Dictionary<string, IEnumerable<ComboBoxItem>> _types = new Dictionary<string, IEnumerable<ComboBoxItem>>();
         private readonly List<LegendItem> _legend = new List<LegendItem>();
+        private readonly List<Type>  _allTypes = new List<Type>();
         private Dictionary<string, Assembly> _assemblies = new Dictionary<string, Assembly>();
+        private Dictionary<string, List<MemberInfo>> _memberInfos = new Dictionary<string, List<MemberInfo>>();
         private Dictionary<LegendItem, List<LegendItem>> _referencedAssemblies = new Dictionary<LegendItem, List<LegendItem>>();
         private DependencyGraph _currentGraph;
         private string _selectedAssembly;
@@ -47,6 +51,12 @@ namespace AssemblyBrowser
         public ObservableCollection<string> AllAssemblies => new ObservableCollection<string>(_assemblies.Keys);
 
         public ObservableCollection<ComboBoxItem> AllTypes => new ObservableCollection<ComboBoxItem>(string.IsNullOrEmpty(_selectedAssembly) ? Enumerable.Empty<ComboBoxItem>() : _types[_selectedAssembly]);
+
+        public ObservableCollection<ComboBoxItem> MemberInfos => new ObservableCollection<ComboBoxItem>(_selectedType == null ? Enumerable.Empty<ComboBoxItem>() : _memberInfos[_selectedType.FullName].Select(x => new ComboBoxItem
+        {
+            Content = x.Name,
+            Tag = x.MetadataToken
+        }));
 
         public ObservableCollection<LegendItem> Legend => new ObservableCollection<LegendItem>(_legend); 
 
@@ -123,6 +133,7 @@ namespace AssemblyBrowser
 
             _selectedAssembly = (string)Assemblies.SelectedItem;
             Types.IsEnabled = true;
+            Members.IsEnabled = false;
             OnPropertyChanged(nameof(AllTypes));
         }
         
@@ -140,63 +151,108 @@ namespace AssemblyBrowser
             }
 
             _selectedType = typeWrapper.Tag as Type;
-            Dispatcher.Invoke(() => { Loading.Visibility = Visibility.Visible; MainGrid.IsEnabled = false; });
-            Task.Factory.StartNew(() =>
+            if (_selectedType == null)
             {
-                try
-                { 
-                    var parser = new TypeInfoParser();
-                    _legend.Clear();
-                    _currentGraph = parser.GetTypeInfoGraph(_selectedType, _legend);
-                    GraphItem = _currentGraph;
-                    //GraphItem.Rankdir = RankDirection.TopToBottom;
-                    var assemblyGroups = GraphItem.Vertices.GroupBy(x => x.Assembly).ToList();
-                    _referencedAssemblies = assemblyGroups.ToDictionary(
-                        x =>
-                            new LegendItem
-                            {
-                                AssemblyName = x.Key,
-                                Color = _legend.First(y => y.AssemblyName.Equals(x.Key)).Color
-                            },
-                        x =>
+                return;
+            }
+            
+            if (_memberInfos.ContainsKey(_selectedType.FullName))
+            {
+                _memberInfos[_selectedType.FullName].Clear();
+                _memberInfos[_selectedType.FullName].AddRange(_selectedType.GetMembers(BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Instance));
+            }
+            else
+            {
+                _memberInfos.Add(_selectedType.FullName, _selectedType.GetMembers(BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Instance).ToList());
+            }
+            
+            Members.IsEnabled = true;
+            Members.SelectedItem = null;
+            OnPropertyChanged(nameof(MemberInfos));
+        }
+
+        private void BuildGraph(object sender, RoutedEventArgs e)
+        {
+            Task.Factory.StartNew(BuildGraphInternal);
+        }
+
+        private void BuildGraphInternal()
+        {
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    Loading.Visibility = Visibility.Visible;
+                    MainGrid.IsEnabled = false;
+                });
+
+                var parser = new TypeInfoParser();
+                _legend.Clear();
+                MemberInfo selectedMember = null;
+                Dispatcher.Invoke(() =>
+                {
+                    if (Members.SelectedItem != null)
+                    {
+                        selectedMember = _memberInfos[_selectedType.FullName].FirstOrDefault(x => x.MetadataToken == (int) (Members.SelectedItem as ComboBoxItem).Tag);
+                    }
+                });
+
+                _currentGraph = selectedMember == null
+                    ? parser.GetTypeInfoGraph(_selectedType, _legend, _allTypes)
+                    : parser.GetMemberInfoGraph(selectedMember, _legend, _allTypes);
+
+                GraphItem = _currentGraph;
+                var assemblyGroups = GraphItem.Vertices.GroupBy(x => x.Assembly).ToList();
+                _referencedAssemblies = assemblyGroups.ToDictionary(
+                    x =>
+                        new LegendItem
                         {
-                            var sortFunction = new Func<TypeInfo, IEnumerable<TypeInfo>>(info =>
-                            {
-                                return GraphItem.Edges
-                                    .Where(z => z.Source.Equals(info) && assemblyGroups.Where(k => string.Equals(k.Key, x.Key)).SelectMany(v => v).Contains(z.Target))
-                                    .Select(z => z.Target);
-                            });
-
-                            var itemsSource = Sort(x, sortFunction).Select(y =>
-                            {
-                                var tb = new LegendItem {AssemblyName = y.Name, Color = Brushes.Transparent};
-                                return tb;
-                            }).ToList();
-
-                            return itemsSource;
+                            AssemblyName = x.Key,
+                            Color = _legend.First(y => y.AssemblyName.Equals(x.Key)).Color
+                        },
+                    x =>
+                    {
+                        var sortFunction = new Func<TypeInfo, IEnumerable<TypeInfo>>(info =>
+                        {
+                            return GraphItem.Edges
+                                .Where(
+                                    z =>
+                                        z.Source.Equals(info) &&
+                                        assemblyGroups.Where(k => string.Equals(k.Key, x.Key))
+                                            .SelectMany(v => v)
+                                            .Contains(z.Target))
+                                .Select(z => z.Target);
                         });
 
-                    ReferencedAssemblies = new ObservableCollection<LegendItem>(_referencedAssemblies.Keys);
-                }
-                catch(Exception ex)
-                { 
-                    Dispatcher.Invoke(() => MessageBox.Show(ex.Message, "Error!", MessageBoxButton.OK, MessageBoxImage.Error));
-                }
-                finally
-                {
-                    Dispatcher.Invoke(() =>
-                    {
-                        Loading.Visibility = Visibility.Collapsed;
-                        MainGrid.IsEnabled = true;
-                        OnPropertyChanged(nameof(GraphItem));
-                        OnPropertyChanged(nameof(ReferencedAssemblies));
-                        OnPropertyChanged(nameof(Legend));
-                        OnPropertyChanged(nameof(TotalVertices));
+                        var itemsSource = Sort(x, sortFunction).Select(y =>
+                        {
+                            var tb = new LegendItem {AssemblyName = y.Name, Color = Brushes.Transparent};
+                            return tb;
+                        }).ToList();
+
+                        return itemsSource;
                     });
-                }
-            });
+
+                ReferencedAssemblies = new ObservableCollection<LegendItem>(_referencedAssemblies.Keys);
+            }
+            catch (Exception ex)
+            {
+                Dispatcher.Invoke(() => MessageBox.Show(ex.Message, "Error!", MessageBoxButton.OK, MessageBoxImage.Error));
+            }
+            finally
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    Loading.Visibility = Visibility.Collapsed;
+                    MainGrid.IsEnabled = true;
+                    OnPropertyChanged(nameof(GraphItem));
+                    OnPropertyChanged(nameof(ReferencedAssemblies));
+                    OnPropertyChanged(nameof(Legend));
+                    OnPropertyChanged(nameof(TotalVertices));
+                });
+            }
         }
-        
+
         private void OnAssembliesFilter(object sender, TextChangedEventArgs e)
         {
             if (!Assemblies.IsDropDownOpen)
@@ -210,6 +266,14 @@ namespace AssemblyBrowser
             if (!Types.IsDropDownOpen)
             {
                 Types.IsDropDownOpen = true;
+            }
+        }
+
+        private void OnMembersFilter(object sender, TextChangedEventArgs e)
+        {
+            if (!Members.IsDropDownOpen)
+            {
+                Members.IsDropDownOpen = true;
             }
         }
 
@@ -278,6 +342,7 @@ namespace AssemblyBrowser
         {
             _assemblies.Clear();
             _types.Clear();
+            _allTypes.Clear();
             _legend.Clear();
             _referencedAssemblies.Clear();
             _currentGraph = null;
@@ -302,7 +367,9 @@ namespace AssemblyBrowser
                             assembly = Assembly.Load(rawAssembly);
                         }
 
-                        var types = GetLoadableTypes(assembly).Where(x => !x.Name.StartsWith("<")).OrderBy(x => x.Name).ToList();
+                        var types = GetLoadableTypes(assembly).Where(x => _nameCheck.IsMatch(x.Name)).OrderBy(x => x.Name).ToList();
+                        _allTypes.AddRange(types.Except(_allTypes));
+
                         _assemblies.Add(assembly.GetName().Name, assembly);
                         _types.Add(assembly.GetName().Name, types.OrderBy(x => x.Name).Select(x => new ComboBoxItem { Content = x.Name, Tag = x }));
                     }
