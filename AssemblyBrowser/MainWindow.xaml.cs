@@ -18,6 +18,7 @@ namespace AssemblyBrowser
 {
     public sealed partial class MainWindow : INotifyPropertyChanged
     {
+        private const string CsvOutputFilePath = @"../../../../{0}.csv";
         private static readonly Regex _nameCheck = new Regex("^[a-zA-Z].*");
         private readonly Dictionary<string, IEnumerable<ComboBoxItem>> _types = new Dictionary<string, IEnumerable<ComboBoxItem>>();
         private readonly List<LegendItem> _legend = new List<LegendItem>();
@@ -202,6 +203,9 @@ namespace AssemblyBrowser
                     : parser.GetMemberInfoGraph(selectedMember, _legend, _allTypes);
 
                 GraphItem = _currentGraph;
+
+                WriteDependenciesToCsvFile(_selectedType.Name, GraphItem.Vertices);
+
                 var assemblyGroups = GraphItem.Vertices.GroupBy(x => x.Assembly).ToList();
                 _referencedAssemblies = assemblyGroups.ToDictionary(
                     x =>
@@ -473,6 +477,43 @@ namespace AssemblyBrowser
 
                 previousType = thisType;
                 thisType = thisType.Parent;
+            }
+        }
+
+        private void WriteDependenciesToCsvFile(string selectedTypeName, IEnumerable<TypeInfo> typeInfos)
+        {
+            using (var csvFileStream = new StreamWriter(string.Format(CsvOutputFilePath, selectedTypeName), false))
+            {
+                csvFileStream.WriteLine("{0},{1}", "Name", "Type");
+                int i = 0;
+
+                foreach (var typeInfo in typeInfos)
+                {
+                    var name = typeInfo.ParentType != null ? string.Format("{0}.{1}", typeInfo.ParentType.Name, typeInfo.Name) : typeInfo.Name;
+                    var type = typeInfo.Name;
+
+                    csvFileStream.WriteLine("{0},{1}", name, type);
+
+                    i++;
+
+                    foreach (var field in typeInfo.Type.GetProperties())
+                    {
+                        name = string.Format("{0}.{1}", typeInfo.Type.Name, field.Name);
+                        type = field.PropertyType.Name;
+
+                        csvFileStream.WriteLine("{0},{1}", name, type);
+
+                        i++;
+
+                        if (i >= 50)
+                        {
+                            csvFileStream.Flush();
+                            i = 0;
+                        }
+                    }
+                }
+
+                csvFileStream.Flush();
             }
         }
     }
